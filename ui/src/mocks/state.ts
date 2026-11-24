@@ -26,6 +26,7 @@ import type { AgentTemplate } from "@/api/domain/agentTemplates";
 import type { Agent } from "@/api/domain/agents";
 import type { EgressPolicy } from "@/api/domain/egressPolicies";
 import {
+  CHART_REFS,
   mockAgentInstances,
   mockAgentTemplates,
   mockAgents,
@@ -66,12 +67,23 @@ function dedupeByRef<T>(rows: readonly T[], refOf: (row: T) => string): T[] {
   return [...byRef.values()];
 }
 
+/**
+ * Which fixtures a read starts from: all of them, only what the chart installs, or none.
+ * What this session wrote is listed under every seed.
+ */
+export type Seed = "all" | "chart" | "none";
+
+function seeded<T>(rows: readonly T[], seed: Seed, refOf: (row: T) => string): readonly T[] {
+  if (seed === "all") return rows;
+  return seed === "chart" ? rows.filter((row) => CHART_REFS.has(refOf(row))) : [];
+}
+
 // ---------------------------------------------------------------------------
 // Model configurations
 // ---------------------------------------------------------------------------
 
-export function allModels(): ModelConfig[] {
-  return dedupeByRef([...mockModels, ...created.models], (model) => model.ref).filter(
+export function allModels(seed: Seed = "all"): ModelConfig[] {
+  return dedupeByRef([...seeded(mockModels, seed, (model) => model.ref), ...created.models], (model) => model.ref).filter(
     (row) => isLive(row.ref),
   );
 }
@@ -91,9 +103,9 @@ export function saveModel(ref: string, spec: ModelConfigSpec): ModelConfig {
 // Tool servers
 // ---------------------------------------------------------------------------
 
-export function allToolServers(): ToolServerResponse[] {
+export function allToolServers(seed: Seed = "all"): ToolServerResponse[] {
   return dedupeByRef(
-    [...mockMcpServers, ...created.mcpServers],
+    [...seeded(mockMcpServers, seed, (server) => server.ref), ...created.mcpServers],
     (server) => server.ref,
   ).filter((row) => isLive(row.ref));
 }
@@ -188,8 +200,8 @@ export const harnessRef = (row: Harness) => `${row.namespace}/${row.name}`;
  * new entry rather than by mutating the fixture, so a created one appears once and a
  * deleted one stops appearing, while `fixtures.ts` stays a file of constants.
  */
-export function allHarnesses(): Harness[] {
-  return dedupeByRef([...mockHarnesses, ...created.harnesses], harnessRef).filter((row) =>
+export function allHarnesses(seed: Seed = "all"): Harness[] {
+  return dedupeByRef([...seeded(mockHarnesses, seed, harnessRef), ...created.harnesses], harnessRef).filter((row) =>
     isLive(harnessRef(row)),
   );
 }
@@ -202,9 +214,9 @@ export function saveHarness(row: Harness): Harness {
   return row;
 }
 
-export function allAgentTemplates(): AgentTemplate[] {
+export function allAgentTemplates(seed: Seed = "all"): AgentTemplate[] {
   return dedupeByRef(
-    [...mockAgentTemplates, ...created.agentTemplates],
+    [...seeded(mockAgentTemplates, seed, agentTemplateRef), ...created.agentTemplates],
     agentTemplateRef,
   ).filter((row) => isLive(agentTemplateRef(row)));
 }
@@ -215,8 +227,8 @@ export function saveAgentTemplate(row: AgentTemplate): AgentTemplate {
   return row;
 }
 
-export function allAgents(): Agent[] {
-  return dedupeByRef([...mockAgents, ...created.agents], row => row.ref).filter(row => isLive(`Agent:${row.ref}`));
+export function allAgents(seed: Seed = "all"): Agent[] {
+  return dedupeByRef([...seeded(mockAgents, seed, row => row.ref), ...created.agents], row => row.ref).filter(row => isLive(`Agent:${row.ref}`));
 }
 export function saveAgent(row: Agent): Agent {
   const at = created.agents.findIndex(existing => existing.ref === row.ref);

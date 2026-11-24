@@ -7,6 +7,8 @@ import type { ColumnsType } from "antd/es/table";
 import { RefreshButton } from "@/components/table/RefreshButton";
 import { useTheme } from "@emotion/react";
 import { FilterBar } from "@/components/table/FilterBar";
+import { LayoutTemplate } from "lucide-react";
+import { QuickstartEmptyState } from "@/pages/agents/QuickstartEmptyState";
 import { useListView } from "@/components/table/useListView";
 import { byText, listTableChange, matchesQuery, paginationFor, sortOrderFor } from "@/components/table/listTable";
 import { RowActionsMenu } from "@/components/table/RowActionsMenu";
@@ -94,6 +96,11 @@ export function AgentTemplatesTab() {
 
   const namespaceFailure = namespaceDenied ? undefined : namespaces.error;
   const loadFailure = namespaceFailure ?? templates.error;
+  // Only a complete, unfiltered read can say there are none. With no namespaces to read
+  // the read never starts, and the namespace list alone answers.
+  const listed = templates.data !== undefined || (!namespaceDenied && namespaces.data?.length === 0);
+  const showEmpty = !loadFailure && listed && !view.isNarrowed &&
+    !templates.data?.refused.length && rows.length === 0;
 
   const columns = useMemo<ColumnsType<AgentTemplate>>(
     () => [
@@ -248,36 +255,43 @@ export function AgentTemplatesTab() {
           />
         ) : null}
 
-        <Table<AgentTemplate>
-          data-testid="templates-table"
-          rowKey={(row) => row.ref}
-          columns={columns}
-          // A failure has its own banner above; leaving the rows out keeps the table
-          // from also claiming the namespace holds nothing.
-          dataSource={loadFailure ? [] : filtered}
-          loading={templates.isLoading}
-          onChange={listTableChange<AgentTemplate>(view)}
-          pagination={paginationFor(view, filtered.length, PAGE_SIZE)}
-          locale={{
-            emptyText: loadFailure
-              ? " "
-              : rows.length === 0
-                ? "No agent templates yet."
+        {showEmpty ? (
+          <QuickstartEmptyState
+            testId="templates-empty"
+            icon={LayoutTemplate}
+            title="No agent templates yet"
+            description="Create example agent templates with the Quickstart."
+          />
+        ) : (
+          <Table<AgentTemplate>
+            data-testid="templates-table"
+            rowKey={(row) => row.ref}
+            columns={columns}
+            // A failure has its own banner above; leaving the rows out keeps the table
+            // from also claiming the namespace holds nothing.
+            dataSource={loadFailure ? [] : filtered}
+            loading={namespaces.isLoading || templates.isLoading}
+            onChange={listTableChange<AgentTemplate>(view)}
+            pagination={paginationFor(view, filtered.length, PAGE_SIZE)}
+            locale={{
+              emptyText: loadFailure
+                ? " "
                 : view.isNarrowed
                   ? "No agent templates match those filters."
                   : " ",
-          }}
-          onRow={(row) =>
-            clickableRow(() =>
-              void navigate(
-                buildPath(paths.agentTemplateDetail, {
-                  namespace: row.namespace,
-                  name: row.name,
-                }),
-              ),
-            )
-          }
-        />
+            }}
+            onRow={(row) =>
+              clickableRow(() =>
+                void navigate(
+                  buildPath(paths.agentTemplateDetail, {
+                    namespace: row.namespace,
+                    name: row.name,
+                  }),
+                ),
+              )
+            }
+          />
+        )}
     </Space>
   );
 }

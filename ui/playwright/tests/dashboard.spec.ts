@@ -71,6 +71,50 @@ test("dashboard: recent conversations read as names, not as ids", async ({ page 
   });
 });
 
+/**
+ * An install with nothing in it: the dashboard swaps its figures for the Quickstart and
+ * the pages to start from. A failed load keeps the figures and the error instead.
+ */
+test("dashboard: an empty install leads to the Quickstart, and a failed one does not", async ({ page }) => {
+  await loadPage(page, routes.dashboard, { scenario: "empty", title: "Dashboard" });
+  const gettingStarted = page.getByTestId("dashboard-getting-started");
+
+  await test.step("1. the figures give way to the getting-started view", async () => {
+    await expect(gettingStarted).toBeVisible();
+    await expect(page.getByTestId("dashboard-summary-grid")).toHaveCount(0);
+    await expect(page.getByTestId("dashboard-header-quickstart")).toHaveCount(0);
+    await expect(gettingStarted.getByRole("link")).toHaveCount(7);
+    // The same docs page the sidebar links to.
+    const docs = await page.getByTestId("sidebar-docs").getAttribute("href");
+    await expect(page.getByTestId("dashboard-docs")).toHaveAttribute("href", docs!);
+  });
+
+  await test.step("2. View Quickstart opens the Quickstart", async () => {
+    await page.getByTestId("dashboard-quickstart").click();
+    await expect(page).toHaveURL(/\/quickstart$/);
+    await expect(page.getByTestId("quickstart")).toBeVisible();
+    await expect(page.getByTestId("quickstart-step-harness")).toBeVisible();
+  });
+
+  await test.step("3. going back returns to the same view", async () => {
+    await page.goBack();
+    await expect(gettingStarted).toBeVisible();
+  });
+
+  await test.step("4. a card opens its page", async () => {
+    await page.getByTestId("dashboard-card-models").click();
+    await expect(page).toHaveURL(/\/models$/);
+    await expect(page.getByTestId("page-title")).toHaveText("Models");
+  });
+
+  await test.step("5. a failed load shows the error, not the getting-started view", async () => {
+    await loadPage(page, routes.dashboard, { scenario: "error", title: "Dashboard" });
+    await expect(page.getByTestId("dashboard-error")).toBeVisible();
+    await expect(page.getByTestId("dashboard-summary-grid")).toBeVisible();
+    await expect(gettingStarted).toHaveCount(0);
+  });
+});
+
 // The tile counts Agent resources, so it matches the Agents page, not the conversation count.
 test("dashboard: the Agents tile matches the Agents page", async ({ page }) => {
   await loadPage(page, routes.agents, { title: "Agents" });
@@ -83,4 +127,7 @@ test("dashboard: the Agents tile matches the Agents page", async ({ page }) => {
   await loadPage(page, routes.dashboard);
   await expectSettled(page);
   await expect(page.getByTestId("stat-agents-value")).toHaveText(total!);
+  // A populated dashboard keeps a way to the Quickstart in its header.
+  await page.getByTestId("dashboard-header-quickstart").click();
+  await expect(page).toHaveURL(/\/quickstart$/);
 });

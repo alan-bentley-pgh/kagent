@@ -20,6 +20,7 @@ import {
 import { DashboardPage } from "@/pages/DashboardPage";
 import { AgentsLandingPage } from "@/pages/agents/AgentsLandingPage";
 import { HarnessEditPage, HarnessNewPage } from "@/pages/agents/HarnessNewPage";
+import { QuickstartPage } from "@/pages/agents/QuickstartPage";
 import { AgentNewChatPage } from "@/pages/AgentNewChatPage";
 import { UnmappedConversationsPage } from "@/pages/UnmappedConversationsPage";
 import { AgentPage } from "@/pages/AgentPage";
@@ -73,6 +74,7 @@ const coreLayoutRoutes: (RouteObject & { key: string })[] = [
   { key: "agentChat", path: paths.agentChat, element: <AgentChatPage /> },
   { key: "harnessNew", path: paths.harnessNew, element: <HarnessNewPage /> },
   { key: "harnessEdit", path: paths.harnessEdit, element: <HarnessEditPage /> },
+  { key: "quickstart", path: paths.quickstart, element: <QuickstartPage /> },
   { key: "agentTemplates", path: paths.agentTemplates, element: <Navigate to={`${paths.agents}?tab=templates`} replace /> },
   {
     key: "agentTemplateNew",

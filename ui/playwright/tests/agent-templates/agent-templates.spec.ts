@@ -414,7 +414,9 @@ test("agent templates: a template is created, read, edited and deleted", async (
     // differently and `?mock=` is per-navigation — which discards what the journey made.
     // By here there is nothing left to discard.
     await loadPage(page, routes.agentTemplates, { scenario: "empty", title: "Agents" });
-    await expect(page.getByText("No agent templates yet.")).toBeVisible();
+    const empty = page.getByTestId("templates-empty");
+    await expect(empty).toContainText("No agent templates yet");
+    await expect(empty.getByTestId("templates-empty-quickstart")).toBeVisible();
     await expect(dataRows(page)).toHaveCount(0);
   });
 
@@ -426,7 +428,7 @@ test("agent templates: a template is created, read, edited and deleted", async (
     await expect(alert).toContainText("Could not load agent templates");
     // The distinction the step exists for: "there are none" and "we could not find out"
     // lead a reader to opposite conclusions, and only one of them is true.
-    await expect(page.getByText("No agent templates yet.")).toHaveCount(0);
+    await expect(page.getByTestId("templates-empty")).toHaveCount(0);
     await expect(dataRows(page)).toHaveCount(0);
   });
 

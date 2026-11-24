@@ -1,5 +1,5 @@
 import { isNotFound, isPermissionDenied } from "../ApiError";
-import type { Agent } from "../domain/agents";
+import { isAgentSettling, type Agent } from "../domain/agents";
 import { parseRef } from "../domain/common";
 import { namespaceReadError } from "./namespaceReadError";
 import { apiClient } from "../client";
@@ -10,6 +10,8 @@ export function useAgent(namespace: string | undefined, name: string | undefined
   return useApiResource(
     namespace && name ? ["agents.get", namespace, name] : null,
     () => apiClient.agentBuildingBlocks.agent(namespace!, name!),
+    // Re-reads while a revision is being prepared, so a new agent turns ready without a reload.
+    { refreshInterval: (agent) => (agent && isAgentSettling(agent) ? 3000 : 0) },
   );
 }
 

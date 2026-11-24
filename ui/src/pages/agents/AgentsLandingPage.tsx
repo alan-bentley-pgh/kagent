@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, Modal, Space, Tabs } from "antd";
 import { useTheme } from "@emotion/react";
-import { Plus } from "lucide-react";
+import { Plus, Rocket } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { CreateOptionRow, ExtensionSlot } from "@/appExtensions";
 import { PageFrame } from "@/components/Structure/PageFrame";
@@ -10,6 +10,7 @@ import { AgentTemplatesTab } from "@/pages/AgentTemplatesPage";
 import { AgentConcepts } from "./AgentConcepts";
 import { HarnessesTab } from "./HarnessesTab";
 import { CREATE_OPTIONS } from "./createOptions";
+import { QuickstartButton } from "./QuickstartEmptyState";
 
 const TABS = ["agents", "templates", "harnesses"] as const;
 
@@ -66,6 +67,7 @@ export function AgentsLandingPage() {
           {/* The point the agents list has always offered, kept where the controls
               now are rather than left behind in the tab they moved out of. */}
           <ExtensionSlot id="app_agents_agentsList_pageHeader_actions" />
+          <QuickstartButton label="Quickstart" icon={<Rocket size={14} aria-hidden />} testId="agents-quickstart" />
           <Button
             type="primary"
             icon={<Plus size={14} />}
@@ -88,12 +90,24 @@ export function AgentsLandingPage() {
         open={creating}
         footer={null}
         onCancel={() => setCreating(false)}
+        // Opens and closes in place, without the zoom and fade.
+        transitionName=""
+        maskTransitionName=""
       >
         <div css={{ display: "grid", gap: theme.space(2) }}>
           {Object.values(CREATE_OPTIONS).map(({ kind, to, description, testId }) => (
             <CreateOptionRow key={kind} title={kind} to={to} description={description} testId={testId} />
           ))}
           <ExtensionSlot id="app_agents_agentsList_createModal_options" />
+        </div>
+        <div
+          css={{
+            display: "flex",
+            justifyContent: "center",
+            marginTop: theme.space(4),
+          }}
+        >
+          <QuickstartButton primary testId="agents-create-quickstart" onNavigate={() => setCreating(false)} />
         </div>
       </Modal>
 

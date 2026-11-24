@@ -171,13 +171,15 @@ import {
   renameCheckpoint,
   saveCheckpoint,
 } from "./state";
-import type { MockCheckpoint } from "./state";
+import type { MockCheckpoint, Seed } from "./state";
 import { mockForkTranscript, mockLatestTaskId } from "@/api/chat/mockChatClient";
 
 /** What a fake is told about the call it is answering. */
 interface MockCall {
   /** The scenario in force. `error` never reaches a fake; `empty` does. */
   readonly scenario: MockScenario;
+  /** Which fixtures the resource lists start from. */
+  readonly seed: Seed;
   /** The call's headers, after any request transform has run. */
   readonly headers: Record<string, string>;
   /** `Service/Method`, for messages that should say what failed. */
@@ -261,8 +263,19 @@ export const mockTransport: Transport = {
     )) {
       throw new ConnectError("Not authorized", Code.PermissionDenied);
     }
+    // A read-only caller: every write is refused.
+    if (scenario === "denied" && /\/(Create|Update|Delete)/.test(rpc)) {
+      throw new ConnectError(`Not authorized to call ${rpc}`, Code.PermissionDenied);
+    }
 
-    const result = await fake(message as never, { scenario, headers, rpc });
+    // `fresh` is `empty` plus what the chart installs, so fakes see it as `empty` with a seed.
+    const seed: Seed = scenario === "fresh" ? "chart" : scenario === "empty" ? "none" : "all";
+    const result = await fake(message as never, {
+      scenario: scenario === "fresh" ? "empty" : scenario,
+      seed,
+      headers,
+      rpc,
+    });
     const output = create(method.output, result as MessageInitShape<O>);
 
     return {
@@ -419,15 +432,12 @@ const specOf = (resource: { value?: JsonObject } | undefined) =>
   ({} as ModelConfigSpec);
 
 on(ModelService.method.listModelConfigs, (_input, call) => ({
-  modelConfigs: call.scenario === "empty" ? [] : allModels().map(modelMessage),
+  modelConfigs: allModels(call.seed).map(modelMessage),
 }));
 
 on(ModelService.method.getModelConfig, (input, call) => {
   const wanted = refString(input.ref);
-  const found =
-    call.scenario === "empty"
-      ? undefined
-      : allModels().find((model) => model.ref === wanted);
+  const found = allModels(call.seed).find((model) => model.ref === wanted);
   if (!found) throw notFound(`model configuration ${wanted}`);
   return { modelConfig: modelMessage(found) };
 });
@@ -512,9 +522,7 @@ on(ModelService.method.listProviderModels, (input) => ({
 
 on(ToolService.method.listToolServers, (_input, call) => ({
   toolServers:
-    call.scenario === "empty"
-      ? []
-      : allToolServers().map((server) => ({
+    allToolServers(call.seed).map((server) => ({
           ref: server.ref,
           groupKind: server.groupKind,
           discoveredTools: server.discoveredTools,
@@ -1039,10 +1047,9 @@ const instanceShareMessage = (share: AgentInstanceShare) => ({
 // ---------------------------------------------------------------------------
 
 on(HarnessService.method.listHarnesses, (input, call) => {
-  if (call.scenario === "empty") return { harnesses: [] };
   const scope = input.namespace.trim();
   return {
-    harnesses: allHarnesses()
+    harnesses: allHarnesses(call.seed)
       .filter((harness) => scope === "" || harness.namespace === scope)
       .map(harnessMessage),
   };
@@ -1133,10 +1140,9 @@ function templateFromResource(
 }
 
 on(AgentTemplateService.method.listAgentTemplates, (input, call) => {
-  if (call.scenario === "empty") return { agentTemplates: [] };
   const scope = input.namespace.trim();
   return {
-    agentTemplates: allAgentTemplates()
+    agentTemplates: allAgentTemplates(call.seed)
       .filter((template) => scope === "" || template.namespace === scope)
       .map(agentTemplateMessage),
   };
@@ -1211,7 +1217,7 @@ on(HarnessService.method.createHarness, (input, call) => {
   if (call.scenario === "error") {
     throw new ConnectError("the mock backend was asked to fail", Code.Internal);
   }
-  if (allHarnesses().some((row) => row.namespace === namespace && row.name === name)) {
+  if (allHarnesses(call.seed).some((row) => row.namespace === namespace && row.name === name)) {
     throw new ConnectError(`Harness ${namespace}/${name} already exists`, Code.AlreadyExists);
   }
   const value = (input.resource?.value ?? {}) as JsonObject;
@@ -1277,6 +1283,9 @@ on(AgentTemplateService.method.createAgentTemplate, (input, call) => {
   if (call.scenario === "error") {
     throw new ConnectError("the mock backend was asked to fail", Code.Internal);
   }
+  if (allAgentTemplates(call.seed).some((row) => row.namespace === namespace && row.name === name)) {
+    throw new ConnectError(`AgentTemplate ${namespace}/${name} already exists`, Code.AlreadyExists);
+  }
   const value = (input.resource?.value ?? {}) as JsonObject;
   return {
     agentTemplate: agentTemplateMessage(
@@ -1315,7 +1324,7 @@ on(AgentTemplateService.method.deleteAgentTemplate, (input) => {
 // ---------------------------------------------------------------------------
 
 on(SystemService.method.listNamespaces, (_input, call) => ({
-  namespaces: call.scenario === "empty" ? [] : mockNamespaces,
+  namespaces: call.seed === "all" ? mockNamespaces : call.seed === "chart" ? mockNamespaces.filter((row) => row.name === "kagent") : [],
 }));
 
 /** Kubernetes namespace scope for workers and pools. */
@@ -1695,7 +1704,7 @@ function agentFor(namespace: string, name: string): Agent {
   if (!found) throw notFound("Agent");
   return found;
 }
-on(AgentService.method.listAgents, (input, call) => ({ agents: call.scenario === "empty" ? [] : allAgents().filter(agent => !input.namespace || agent.namespace === input.namespace).map(agentMessage) }));
+on(AgentService.method.listAgents, (input, call) => ({ agents: allAgents(call.seed).filter(agent => !input.namespace || agent.namespace === input.namespace).map(agentMessage) }));
 on(AgentService.method.getAgent, input => ({ agent: agentMessage(agentFor(input.ref?.namespace ?? "", input.ref?.name ?? "")) }));
 function writeAgent(ref: {namespace: string; name: string} | undefined, value: JsonObject | undefined, previous?: Agent): Agent {
   const namespace = requireNamespace(ref?.namespace ?? "");
@@ -1756,9 +1765,9 @@ function stableHash(text: string): string {
   for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return hash.toString(16).padStart(8, "0");
 }
-on(AgentService.method.createAgent, input => {
+on(AgentService.method.createAgent, (input, call) => {
   const agent = writeAgent(input.ref, input.resource?.value);
-  if (allAgents().some(row => row.ref === agent.ref)) throw new ConnectError("Agent already exists", Code.AlreadyExists);
+  if (allAgents(call.seed).some(row => row.ref === agent.ref)) throw new ConnectError("Agent already exists", Code.AlreadyExists);
   return {agent: agentMessage(saveAgent(agent))};
 });
 on(AgentService.method.updateAgent, input => {

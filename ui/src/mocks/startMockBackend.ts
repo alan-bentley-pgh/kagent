@@ -31,7 +31,8 @@ import {
 export async function startMockBackend(): Promise<void> {
   setApiTransport(mockTransport);
 
-  if (!window.environmentVariables?.BUILTIN_SKILLS) {
+  // A fresh chart install has examples off, and with them the skills catalog.
+  if (!window.environmentVariables?.BUILTIN_SKILLS && currentScenario() !== "fresh") {
     window.environmentVariables = {
       ...window.environmentVariables,
       BUILTIN_SKILLS: JSON.stringify(mockBuiltinSkills),

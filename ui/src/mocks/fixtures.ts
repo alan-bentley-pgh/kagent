@@ -28,6 +28,16 @@ import type { AgentTemplate } from "@/api/domain/agentTemplates";
 import type { EgressPolicy, EgressPolicySpec } from "@/api/domain/egressPolicies";
 import type { SandboxTemplate } from "@/api/domain/sandboxTemplates";
 import type { BuiltinSkillsCatalog } from "@/api/runtimeConfig";
+import { SPECIALISTS, specialistTemplate } from "@/pages/agents/quickstartExamples";
+
+/** What a fresh chart install has before anyone adds to it: `?mock=fresh` serves only these. */
+export const CHART_REFS: ReadonlySet<string> = new Set([
+  "kagent/default-model-config",
+  "kagent/kagent-tool-server",
+  "kagent/kagent-default",
+  "kagent/codex-default",
+  "kagent/claude-default",
+]);
 
 export const mockModels: ModelConfig[] = [
   {
@@ -756,7 +766,18 @@ export const mockBuiltinSkills: BuiltinSkillsCatalog = {
   ],
 };
 
+/** The chart's own example template, so the Quickstart has one to find already there. */
+const platformKubernetes = specialistTemplate(SPECIALISTS[0], mockBuiltinSkills)!;
+
 export const mockAgentTemplates: AgentTemplate[] = [
+  {
+    ref: "kagent/platform-kubernetes",
+    namespace: "kagent",
+    name: "platform-kubernetes",
+    modelConfigRef: "kagent/default-model-config",
+    description: platformKubernetes.spec.description ?? "",
+    resource: platformKubernetes,
+  },
   {
     ref: "kagent/k8s-agent-7f3a91c",
     namespace: "kagent",

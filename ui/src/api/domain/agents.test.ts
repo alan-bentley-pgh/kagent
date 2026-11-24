@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentTemplate } from "./agentTemplates";
-import { agentDescription, agentRevisionState, agentUpdateFailedReason, newConversationBlockedReason, type Agent, type AgentStatus } from "./agents";
+import { agentDescription, agentRevisionState, isAgentSettling, agentUpdateFailedReason, newConversationBlockedReason, type Agent, type AgentStatus } from "./agents";
 
 function agent(status?: AgentStatus): Agent {
   return { name: "a", namespace: "team", ref: "team/a", resource: { metadata: { name: "a", namespace: "team" }, spec: { template: { ref: { name: "shared" } }, harnessRef: { name: "runner" } }, status } };
@@ -38,6 +38,12 @@ describe("Agent readiness", () => {
   it("treats a pending golden snapshot as preparing, not failed", () => {
     const row = agent({ desiredRevision: "new", conditions: [{ type: "Ready", status: "False", reason: "ActorTemplatePending" }] });
     expect(agentRevisionState(row)).toBe("preparing");
+  });
+  it("keeps polling while a revision is on its way, and stops once it is ready or has failed", () => {
+    expect(isAgentSettling(agent())).toBe(true);
+    expect(isAgentSettling(agent({ desiredRevision: "new", conditions: [{ type: "Ready", status: "False", reason: "ActorTemplatePending" }] }))).toBe(true);
+    expect(isAgentSettling(agent({ latestSuccessfulRevision: "good", desiredRevision: "good" }))).toBe(false);
+    expect(isAgentSettling(agent({ desiredRevision: "new", conditions: [{ type: "Compatible", status: "False", message: "Unsupported" }] }))).toBe(false);
   });
   it("reports a new revision still being prepared as updating", () => {
     expect(agentRevisionState(agent({ latestSuccessfulRevision: "good", desiredRevision: "new", conditions: [{ type: "Ready", status: "False", reason: "ActorTemplatePending" }] }))).toBe("updating");

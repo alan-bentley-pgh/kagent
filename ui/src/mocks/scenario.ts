@@ -11,7 +11,11 @@
  * the query string. `?mock=ok` clears it again.
  */
 
-export const MOCK_SCENARIOS = ["ok", "empty", "error", "slow", "denied"] as const;
+/**
+ * `empty` serves no fixtures and `fresh` only what the chart installs (its namespace, model,
+ * tool server and harnesses, and no skills catalog). Under both, what the session creates is listed.
+ */
+export const MOCK_SCENARIOS = ["ok", "empty", "fresh", "error", "slow", "denied"] as const;
 
 export type MockScenario = (typeof MOCK_SCENARIOS)[number];
 
@@ -26,6 +30,7 @@ export const SCENARIO_DELAY_MS: Record<MockScenario, number> = {
   ok: 450,
   empty: 450,
   error: 450,
+  fresh: 450,
   denied: 450,
   slow: 2_500,
 };

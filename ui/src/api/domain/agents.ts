@@ -70,6 +70,12 @@ export function agentRevisionState({ resource: { metadata, status } }: Agent): A
   return status?.desiredRevision || behind ? "preparing" : "notReported";
 }
 
+/** Whether the controller is still working toward a revision, so the status will change on its own. */
+export function isAgentSettling(agent: Agent): boolean {
+  const state = agentRevisionState(agent);
+  return state === "preparing" || state === "updating" || state === "notReported";
+}
+
 /** A conversation starts from the last successful revision, even while a newer one is failing. */
 export function isAgentRunnable(agent: Agent): boolean {
   return Boolean(agent.resource.status?.latestSuccessfulRevision);

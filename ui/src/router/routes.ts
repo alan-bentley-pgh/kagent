@@ -55,6 +55,9 @@ export const paths = {
    * Below the agents in the navigation because that is the order a reader meets
    * them — you come looking for an agent, and a template is what one is made of.
    */
+  /** First steps for an empty install, linked from the agents page. */
+  quickstart: "/quickstart",
+
   agentTemplates: "/agent-templates",
   agentTemplateNew: "/agent-templates/new",
   harnessNew: "/harnesses/new",

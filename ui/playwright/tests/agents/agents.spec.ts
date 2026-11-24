@@ -234,12 +234,58 @@ test("agents: the landing page is three tabs, and the tab is in the address", as
     await expect(page.getByTestId("agents-new")).toBeVisible();
     await expect(page.getByTestId("agents-new-template")).toBeVisible();
     await expect(page.getByTestId("agents-new-harness")).toBeVisible();
+    await expect(page.getByTestId("agents-create-quickstart")).toHaveText("View Quickstart");
     // Closed again: the modal's mask would make the diagram's "+" inert.
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("agents-new")).toBeHidden();
     for (const k of ["Agent", "AgentTemplate", "Harness"]) {
       await expect(page.getByTestId(`concept-create-${k}`)).toBeVisible();
     }
+    // The Quickstart sits beside Create.
+    await page.getByTestId("agents-quickstart").click();
+    await expect(page).toHaveURL(/\/quickstart$/);
+    await expect(page.getByTestId("quickstart-step-harness")).toBeVisible();
+    await page.goBack();
+  });
+});
+
+/**
+ * An empty install: each tab says there is nothing yet and points to the Quickstart, as
+ * does the Create dialog, and the Quickstart leads back.
+ */
+test("agents: an empty install points to the Quickstart, and it leads back", async ({ page }) => {
+  await loadPage(page, routes.agents, { scenario: "empty", title: "Agents" });
+
+  await test.step("1. each tab shows its own empty state", async () => {
+    await expect(page.getByTestId("agents-empty")).toContainText("No agents yet");
+    await expect(page.getByTestId("agents-table")).toHaveCount(0);
+
+    await page.getByRole("tab", { name: "Templates" }).click();
+    await expect(page.getByTestId("templates-empty")).toContainText("No agent templates yet");
+
+    await page.getByRole("tab", { name: "Harnesses" }).click();
+    await expect(page.getByTestId("harnesses-empty")).toContainText("No harnesses yet");
+  });
+
+  await test.step("2. a tab's button opens the Quickstart", async () => {
+    await page.getByTestId("harnesses-empty-quickstart").click();
+    await expect(page).toHaveURL(/\/quickstart$/);
+    await expect(page.getByTestId("quickstart")).toBeVisible();
+    await expect(page.getByTestId("quickstart-step-harness")).toBeVisible();
+  });
+
+  await test.step("3. the Quickstart links back to the agents page", async () => {
+    await page.getByTestId("quickstart-back").click();
+    await expect(page).toHaveURL(/\/agents$/);
+    await expect(page.getByTestId("agents-empty")).toBeVisible();
+  });
+
+  await test.step("4. the Create dialog opens the Quickstart and closes", async () => {
+    await page.getByTestId("agents-create").click();
+    await page.getByTestId("agents-create-quickstart").click();
+    await expect(page).toHaveURL(/\/quickstart$/);
+    await expect(page.getByTestId("page-title")).toHaveText("Quickstart");
+    await expect(page.getByTestId("agents-new")).toHaveCount(0);
   });
 });
 
@@ -326,6 +372,7 @@ test("agents: a failed load is reported, not disguised as an empty list", async 
     // Every wording the empty state can take, because reporting a failed read as
     // "there are none" is the specific bug this step exists for.
     await expect(page.getByText(/No agents/)).toHaveCount(0);
+    await expect(page.getByTestId("agents-empty")).toHaveCount(0);
     await expect(dataRows(page)).toHaveCount(0);
   });
 

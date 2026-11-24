@@ -14,6 +14,9 @@ import { paths } from "@/router/routes";
 /** Where every rail icon's left edge sits, from the row's inset: the same expanded and collapsed. */
 export const NAV_INSET = 18;
 
+/** Where the docs links point. The project's own documentation, not a deployment's. */
+export const DOCS_URL = "https://kagent.dev/docs/kagent";
+
 export interface NavItem {
   /** Stable identifier; also the antd Menu key. */
   key: string;

@@ -9,11 +9,13 @@ import { PageFrame } from "@/components/Structure/PageFrame";
 import { ReadinessMeter } from "@/components/dashboard/ReadinessMeter";
 import { StatTile } from "@/components/dashboard/StatTile";
 import { ToolsPerServerChart } from "@/components/dashboard/ToolsPerServerChart";
+import { GettingStarted } from "@/components/dashboard/GettingStarted";
 import { ExtensionSlot } from "@/appExtensions";
 import { buildPath, paths } from "@/router/routes";
 import {
   agentRevisionState,
   useAgentInstances,
+  useAgentTemplatesAcrossNamespaces,
   useAgentsAcrossNamespaces,
   useMcpServers,
   useModels,
@@ -28,6 +30,8 @@ import {
 import { ConversationTitlePlaceholder } from "@/components/agent-instances/ConversationTitlePlaceholder";
 import { useConversationTitles } from "@/api/hooks/useConversationTitles";
 import { RefreshButton } from "@/components/table/RefreshButton";
+import { QuickstartButton } from "@/pages/agents/QuickstartEmptyState";
+import { Rocket } from "lucide-react";
 
 const { Text } = Typography;
 
@@ -64,6 +68,8 @@ export function DashboardPage() {
   const models = useModels();
   const servers = useMcpServers();
   const tools = useTools();
+  // Read only to tell an empty install apart; the page shows no template figure.
+  const templates = useAgentTemplatesAcrossNamespaces(namespaceDenied ? null : namespaceNames);
 
   const resources = [
     { label: "namespaces", resource: namespaces },
@@ -80,8 +86,20 @@ export function DashboardPage() {
   const failures = failedReads.filter(({ error }) => !isPermissionDenied(error));
   const isRefreshing = resources.some((entry) => entry.resource.isValidating);
 
+  // Empty only when every read answered in full with no agents and no templates. With no
+  // namespaces the template read never starts, and the namespace list alone answers.
+  const templatesListed = templates.data !== undefined || namespaces.data?.length === 0;
+  const allLoaded = resources.every(({ resource }) => resource.data !== undefined) && templatesListed;
+  const anyFailed = failedReads.length > 0 || templates.error !== undefined;
+  const isEmptyInstall = !anyFailed && allLoaded &&
+    definitions.data?.refused.length === 0 && !templates.data?.refused.length &&
+    definitions.data.agents.length === 0 && !templates.data?.templates.length;
+  // Until that is known the widgets stay in their loading state, so neither zeros nor
+  // the getting-started view flash past.
+  const deciding = !anyFailed && !allLoaded;
+
   async function refreshAll(): Promise<void> {
-    await Promise.all(resources.map(async ({ resource }) => {
+    await Promise.all([...resources, { resource: templates }].map(async ({ resource }) => {
       try {
         await resource.refresh();
       } catch (error) {
@@ -120,7 +138,13 @@ export function DashboardPage() {
       title="Dashboard"
       description="Overview of agents, models, and recent activity."
       actions={
-        <RefreshButton onRefresh={refreshAll} what="Dashboard" loading={isRefreshing} iconOnly />
+        <Space size={8}>
+          {/* An empty install offers the Quickstart in the page body instead. */}
+          {deciding || isEmptyInstall ? null : (
+            <QuickstartButton label="Quickstart" icon={<Rocket size={14} aria-hidden />} testId="dashboard-header-quickstart" />
+          )}
+          <RefreshButton onRefresh={refreshAll} what="Dashboard" loading={isRefreshing} iconOnly />
+        </Space>
       }
     >
       <Space orientation="vertical" size="middle" css={{ display: "flex" }}>
@@ -144,109 +168,115 @@ export function DashboardPage() {
           />
         ) : null}
 
-        <div
-          data-testid="dashboard-summary-grid"
-          css={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-            gap: theme.space(4),
-          }}
-        >
-          {/* Ahead of the application's own figures, so a distribution can lead
-              with something of its own without displacing any of them. */}
-          <ExtensionSlot id="app_dashboard_dashboardOverview_summaryGrid_leadingCard" />
+        {isEmptyInstall ? (
+          <GettingStarted />
+        ) : (
+          <>
+            <div
+              data-testid="dashboard-summary-grid"
+              css={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+                gap: theme.space(4),
+              }}
+            >
+              {/* Ahead of the application's own figures, so a distribution can lead
+                  with something of its own without displacing any of them. */}
+              <ExtensionSlot id="app_dashboard_dashboardOverview_summaryGrid_leadingCard" />
 
-          <StatTile
-            label="Agents"
-            testId="stat-agents"
-            value={agentList?.length}
-            isLoading={namespaces.isLoading || definitions.isLoading}
-            hint={agentsHint}
-          />
-          <StatTile
-            label="Model configurations"
-            testId="stat-models"
-            value={models.error ? undefined : models.data?.length}
-            isLoading={models.isLoading}
-            hint={models.error ? UNREADABLE : undefined}
-          />
-          <StatTile
-            label="MCP servers"
-            testId="stat-mcp-servers"
-            value={servers.error ? undefined : servers.data?.length}
-            isLoading={servers.isLoading}
-            hint={servers.error ? UNREADABLE : undefined}
-          />
-          <StatTile
-            label="Tools discovered"
-            testId="stat-tools"
-            value={tools.error ? undefined : tools.data?.length}
-            isLoading={tools.isLoading}
-            hint={tools.error ? UNREADABLE : undefined}
-          />
-        </div>
+              <StatTile
+                label="Agents"
+                testId="stat-agents"
+                value={agentList?.length}
+                isLoading={namespaces.isLoading || definitions.isLoading || deciding}
+                hint={agentsHint}
+              />
+              <StatTile
+                label="Model configurations"
+                testId="stat-models"
+                value={models.error ? undefined : models.data?.length}
+                isLoading={models.isLoading || deciding}
+                hint={models.error ? UNREADABLE : undefined}
+              />
+              <StatTile
+                label="MCP servers"
+                testId="stat-mcp-servers"
+                value={servers.error ? undefined : servers.data?.length}
+                isLoading={servers.isLoading || deciding}
+                hint={servers.error ? UNREADABLE : undefined}
+              />
+              <StatTile
+                label="Tools discovered"
+                testId="stat-tools"
+                value={tools.error ? undefined : tools.data?.length}
+                isLoading={tools.isLoading || deciding}
+                hint={tools.error ? UNREADABLE : undefined}
+              />
+            </div>
 
-        <div
-          css={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-            gap: theme.space(4),
-            alignItems: "start",
-          }}
-        >
-          <Card
-            title="Discovered tools per MCP server"
-            data-testid="dashboard-tools-card"
-          >
-            <ToolsPerServerChart
-              servers={servers.error ? [] : (servers.data ?? [])}
-              hasError={servers.error !== undefined}
-              isLoading={servers.isLoading}
-            />
-          </Card>
+            <div
+              css={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+                gap: theme.space(4),
+                alignItems: "start",
+              }}
+            >
+              <Card
+                title="Discovered tools per MCP server"
+                data-testid="dashboard-tools-card"
+              >
+                <ToolsPerServerChart
+                  servers={servers.error ? [] : (servers.data ?? [])}
+                  hasError={servers.error !== undefined}
+                  isLoading={servers.isLoading || deciding}
+                />
+              </Card>
 
-          <Card title="Recent agent chat sessions" data-testid="dashboard-recent-card">
-            <Space orientation="vertical" size="middle" css={{ display: "flex" }}>
-              {agents.error ? (
-                <Text
-                  data-testid="recent-agents-unavailable"
-                  css={{ color: theme.color.textMuted }}
-                >
-                  Recent activity is unavailable while chat sessions cannot be read.
-                </Text>
-              ) : recent.length === 0 ? (
-                agents.isLoading ? null : (
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    data-testid="recent-agents-empty"
-                    description="No chat sessions yet."
-                  />
-                )
-              ) : (
-                <>
-                  <ReadinessMeter ready={readyCount} total={agentRows.length} />
-                  <ul
-                    data-testid="recent-agents"
-                    css={{ listStyle: "none", margin: 0, padding: 0 }}
-                  >
-                    {recent.map((row) => (
-                      <RecentAgent
-                        key={row.id}
-                        row={row}
-                        autoTitle={derivedTitles[row.id]}
-                        isTitleLoading={isConversationTitlePending(
-                          row,
-                          derivedTitles[row.id],
-                          loadingTitles,
-                        )}
+              <Card title="Recent agent chat sessions" data-testid="dashboard-recent-card">
+                <Space orientation="vertical" size="middle" css={{ display: "flex" }}>
+                  {agents.error ? (
+                    <Text
+                      data-testid="recent-agents-unavailable"
+                      css={{ color: theme.color.textMuted }}
+                    >
+                      Recent activity is unavailable while chat sessions cannot be read.
+                    </Text>
+                  ) : recent.length === 0 ? (
+                    agents.isLoading || deciding ? null : (
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        data-testid="recent-agents-empty"
+                        description="No chat sessions yet."
                       />
-                    ))}
-                  </ul>
-                </>
-              )}
-            </Space>
-          </Card>
-        </div>
+                    )
+                  ) : (
+                    <>
+                      <ReadinessMeter ready={readyCount} total={agentRows.length} />
+                      <ul
+                        data-testid="recent-agents"
+                        css={{ listStyle: "none", margin: 0, padding: 0 }}
+                      >
+                        {recent.map((row) => (
+                          <RecentAgent
+                            key={row.id}
+                            row={row}
+                            autoTitle={derivedTitles[row.id]}
+                            isTitleLoading={isConversationTitlePending(
+                              row,
+                              derivedTitles[row.id],
+                              loadingTitles,
+                            )}
+                          />
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </Space>
+              </Card>
+            </div>
+          </>
+        )}
       </Space>
     </PageFrame>
   );

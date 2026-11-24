@@ -28,6 +28,7 @@ test("refreshes the dashboard when unrelated reads are denied", async ({ page })
   await expect(alert).toHaveText("You do not have access to namespaces and model configurations");
   await expect(alert.getByRole("button", { name: "Try again" })).toHaveCount(0);
   await expect(page.getByTestId("stat-agents-value")).toHaveText(/^[1-9]\d*$/);
+  await expect(page.getByTestId("dashboard-getting-started")).toHaveCount(0);
   const reads = await operationCalls(page, rpc.listAgentInstances);
   await page.getByTestId("refresh-button").click();
   await expect(page.getByText("Dashboard refreshed")).toBeVisible();

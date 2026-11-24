@@ -25,6 +25,8 @@ import {
 import { agentNewChatUrl } from "@/components/agent/agentUrl";
 import { AgentStatusTag } from "@/components/agent/AgentStatusTag";
 import { FilterBar } from "@/components/table/FilterBar";
+import { Bot } from "lucide-react";
+import { QuickstartEmptyState } from "@/pages/agents/QuickstartEmptyState";
 import { useListView } from "@/components/table/useListView";
 import { clickableRow } from "@/components/table/rowClick";
 import {
@@ -83,6 +85,10 @@ export function AgentsTab() {
   }, [conversations.data]);
 
   const agents = useMemo(() => definitions.data?.agents ?? [], [definitions.data]);
+  // Only a complete, unfiltered read can say there are none; the namespace list must land
+  // first, since the read over no namespaces answers empty at once.
+  const showEmpty = !loadFailure && (namespaces.data !== undefined || namespaceDenied) &&
+    !view.isNarrowed && definitions.data?.refused.length === 0 && agents.length === 0;
 
   const refreshThisTab = async () => {
     await Promise.all([definitions.refresh(), templates.refresh(), conversations.refresh()]);
@@ -317,33 +323,36 @@ export function AgentsTab() {
         }
       />
 
-      <Table<Agent>
-        data-testid="agents-table"
-        rowKey={(row) => row.ref}
-        columns={columns}
-        dataSource={loadFailure ? [] : filtered}
-        // Held for the templates too: their descriptions grow rows, and a late
-        // shift moves a row out from under the pointer mid-click.
-        loading={definitions.isLoading || templates.isLoading}
-        onChange={listTableChange<Agent>(view)}
-        pagination={paginationFor(view, filtered.length, PAGE_SIZE)}
-        scroll={{ x: 960 }}
-        locale={{
-          emptyText: loadFailure
-            ? " "
-            : view.isNarrowed
-              ? "No agents match those filters."
-              : definitions.data
-                ? "No agents yet. Create one to pair a template with a harness."
-                : " ",
-        }}
-        onRow={(row) =>
-          clickableRow(() => {
-            const destination = agentNewChatUrl(row);
-            if (destination) void navigate(destination);
-          })
-        }
-      />
+      {showEmpty ? (
+        <QuickstartEmptyState
+          testId="agents-empty"
+          icon={Bot}
+          title="No agents yet"
+          description="Create example agents with the Quickstart."
+        />
+      ) : (
+        <Table<Agent>
+          data-testid="agents-table"
+          rowKey={(row) => row.ref}
+          columns={columns}
+          dataSource={loadFailure ? [] : filtered}
+          // Held for the templates too: their descriptions grow rows, and a late
+          // shift moves a row out from under the pointer mid-click.
+          loading={namespaces.isLoading || definitions.isLoading || templates.isLoading}
+          onChange={listTableChange<Agent>(view)}
+          pagination={paginationFor(view, filtered.length, PAGE_SIZE)}
+          scroll={{ x: 960 }}
+          locale={{
+            emptyText: !loadFailure && view.isNarrowed ? "No agents match those filters." : " ",
+          }}
+          onRow={(row) =>
+            clickableRow(() => {
+              const destination = agentNewChatUrl(row);
+              if (destination) void navigate(destination);
+            })
+          }
+        />
+      )}
     </Space>
   );
 }

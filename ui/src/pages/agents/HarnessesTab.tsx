@@ -1,23 +1,25 @@
-import { isPermissionDenied } from "@/api/ApiError";
-import { ReadError } from "@/components/common/ReadError";
-import { useMemo } from "react";
-import { RefreshButton } from "@/components/table/RefreshButton";
-import { Skeleton, Space, Table, Tag, Typography } from "antd";
-import type { ColumnsType } from "antd/es/table";
-import { useTheme } from "@emotion/react";
 import {
+  apiClient, useAgentsAcrossNamespaces,
   useHarnessesAcrossNamespaces,
   useInvalidateAgentTemplates,
   useNamespaces,
   type Harness,
 } from "@/api";
-import { apiClient, useAgentsAcrossNamespaces } from "@/api";
-import { FilterBar } from "@/components/table/FilterBar";
-import { useListView } from "@/components/table/useListView";
-import { matchesQuery } from "@/components/table/listTable";
-import { RowActionsMenu } from "@/components/table/RowActionsMenu";
+import { isPermissionDenied } from "@/api/ApiError";
+import { ReadError } from "@/components/common/ReadError";
 import { copyPath } from "@/components/table/copyFrom";
+import { FilterBar } from "@/components/table/FilterBar";
+import { matchesQuery } from "@/components/table/listTable";
+import { RefreshButton } from "@/components/table/RefreshButton";
+import { RowActionsMenu } from "@/components/table/RowActionsMenu";
+import { useListView } from "@/components/table/useListView";
 import { buildPath, paths } from "@/router/routes";
+import { useTheme } from "@emotion/react";
+import { Skeleton, Space, Table, Tag, Typography } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import { Container } from "lucide-react";
+import { useMemo } from "react";
+import { QuickstartEmptyState } from "./QuickstartEmptyState";
 
 /** The filters this tab offers, which `useListView` keeps in the URL. */
 const FILTER_IDS = ["ns"] as const;
@@ -43,6 +45,10 @@ export function HarnessesTab() {
   const selectedNamespaces = view.selected("ns");
 
   const rows = harnesses.data ?? [];
+  // Only a successful, unfiltered read can say there are none. With no namespaces to read
+  // the read never starts, and the namespace list alone answers.
+  const listed = harnesses.data !== undefined || (!namespaceDenied && namespaces.data?.length === 0);
+  const showEmpty = !loadFailure && listed && !view.isNarrowed && rows.length === 0;
   const filtered = useMemo(
     () =>
       rows
@@ -168,15 +174,24 @@ export function HarnessesTab() {
         />
       ) : null}
 
-      {harnesses.isLoading ? (
+      {namespaces.isLoading || harnesses.isLoading ? (
         <Skeleton active paragraph={{ rows: 4 }} data-testid="harnesses-loading" />
+      ) : showEmpty ? (
+        <QuickstartEmptyState
+          testId="harnesses-empty"
+          icon={Container}
+          title="No harnesses yet"
+          description="Create example harnesses with the Quickstart."
+        />
       ) : (
         <Table<Harness>
           data-testid="harnesses-table"
           rowKey={(row) => row.ref}
           columns={columns}
           dataSource={loadFailure ? [] : filtered}
-          locale={loadFailure ? { emptyText: " " } : undefined}
+          locale={{
+            emptyText: loadFailure || !view.isNarrowed ? " " : "No harnesses match those filters.",
+          }}
           pagination={false}
           size="small"
         />
